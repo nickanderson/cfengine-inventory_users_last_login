@@ -9,18 +9,54 @@ Like /[[https://en.wikipedia.org/wiki/Literate_programming][literate programming
 policy in a natural language, interspersed with snippets macros and traditional
 source code from which CFEngine policy can be produced.
 
-* Running the standalone policy
-:PROPERTIES:
-:tangle:   standalone.cf
-:END:
+* Running the policy
+
+#+BEGIN_SRC shell :exports both :results output
+  cf-agent -KIf ./standalone.cf --define DEBUG
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+    info: Executing 'no timeout' ... 'lastlog > /tmp/lastlog.cache'
+    info: Completed execution of 'lastlog > /tmp/lastlog.cache'
+R: lastlog: nickanderson 2017-11-29T21:47:06ZCST
+R: Data container for users who have logged in:
+{
+  "nickanderson": [
+    "pts/3",
+    "192.168.42.198",
+    "Wed",
+    "Nov",
+    "29",
+    "21:47:06",
+    "-0600",
+    "2017"
+  ]
+}
+    info: Executing 'no timeout' ... 'last -1 --fullnames > /tmp/last.cache'
+    info: Completed execution of 'last -1 --fullnames > /tmp/last.cache'
+R: last: nickanderson 2018-02-09T08:17:00ZCST
+R: Data container for most recent user login:
+{
+  "nickanderson": [
+    "tty2",
+    ":0",
+    "Fri",
+    "Feb",
+    "9",
+    "08:17",
+    "still",
+    "logged",
+    "in"
+  ]
+}
+#+end_example
+
+* Standalone policy
 
 I want to be able to run this policy by itself. Or have it included as part of a
 larger policy set. So I create =standalone.cf= as a wrapper to run just this
 policy and include external dependencies as necessary.
-
-#+BEGIN_SRC shell
-  cf-agent -KIf ./standalone.cf
-#+END_SRC
 
 It needs some things from the standard library so I define =standalone.cf= and
 add the stdlib to =inputs=.
