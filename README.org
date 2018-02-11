@@ -1,0 +1,337 @@
+#+Title: Inventory users last login
+
+This policy inventories users who have logged in based on the ~last~ and
+~lastlog~ command output. It is also an experiment in literate policy.
+
+What is literate policy?
+
+Like /[[https://en.wikipedia.org/wiki/Literate_programming][literate programming]]/ literate policy is given as an explanation of the
+policy in a natural language, interspersed with snippets macros and traditional
+source code from which CFEngine policy can be produced.
+
+* Running the standalone policy
+:PROPERTIES:
+:tangle:   standalone.cf
+:END:
+
+I want to be able to run this policy by itself. Or have it included as part of a
+larger policy set. So I create =standalone.cf= as a wrapper to run just this
+policy and include external dependencies as necessary.
+
+#+BEGIN_SRC shell
+  cf-agent -KIf ./standalone.cf
+#+END_SRC
+
+It needs some things from the standard library so I define =standalone.cf= and
+add the stdlib to =inputs=.
+
+#+BEGIN_SRC cfengine3
+  body common control
+  {
+    inputs => { 
+                "$(sys.libdir)/stdlib.cf", 
+#+END_SRC              
+
+I include =inventory_lastlog.cf= to inventory the users who have logged into the
+system according to ~lastlog~.
+
+#+BEGIN_SRC cfengine3
+                "inventory_lastlog.cf",
+#+END_SRC
+
+I include =inventory_last.cf= to inventory the user who has most recently logged
+into the host according to ~last~.
+
+#+BEGIN_SRC cfengine3
+                "inventory_last.cf" }; 
+#+END_SRC
+
+When running standalone I want to see information from both policies.
+
+#+BEGIN_SRC cfengine3
+    bundlesequence => { "inventory_lastlog", "inventory_last" };
+  } 
+#+END_SRC
+
+* Inventory the most recently logged in user
+:PROPERTIES:
+:comments: org
+:END:
+
+I want to know which user logged in most recently and when according to the
+~last~ command. First I define =inventory_last= as an agent bundle. 
+
+#+Caption: =inventory_last.cf=
+#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+  bundle agent inventory_last 
+  {
+#+END_SRC
+
+Next I need to execute the ~last~ command to get the most recent user using the
+=-1= option and being sure to not to truncate the username using the
+=--fullnames= option. The output is cached in a temporary file so that it can be
+parsed for inventory.
+
+
+#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+    commands:
+       "last -1 --fullnames > /tmp/last.cache"
+         contain => in_shell;
+#+END_SRC
+
+We may want to condition this execution to when no cache exists. Currently we
+are only using the native promise locking caching.
+
+Here is an example of the cached data.
+
+#+Caption: Example output from ~last~ command
+#+BEGIN_EXAMPLE
+  nickanderson tty2         :0               Fri Feb  9 08:17   still logged in
+
+  wtmp begins Tue Feb  6 09:37:17 2018
+#+END_EXAMPLE
+
+I only want to parse the username and login information into a data structure so
+I treat the information about when the log begins as a comment line and throw it
+away (=^wtmp[^\n]*=). The agent will happily re-parse the file and re-define the
+variable during each pass of evaluation. To prevent the un-necesary overhead of
+re-parsing we only parse if the variable has not yet been defined.
+
+#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+    vars:
+
+        "l" data => data_readstringarray( "/tmp/last.cache", # filename
+                                          # I want to treat lines that have the string **Never logged in** as comment lines
+                                          # I also want to throw away the header that starts with Username
+                                          "^wtmp[^\n]*", # comment
+                                          "\s+", # split
+                                          inf, # maxentries
+                                          inf), # maxbytes
+            if => not(isvariable(l) ); # efficiency gain ... should be policy => const though
+#+END_SRC
+
+Here is an example of the data structure that is returned.
+
+#+BEGIN_SRC json
+{
+  "nickanderson": [
+    "tty2",
+    ":0",
+    "Fri",
+    "Feb",
+    "9",
+    "08:17",
+    "still",
+    "logged",
+    "in"
+  ]
+}
+#+END_SRC
+
+I extract and inventory the username that most recently logged in.
+
+#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+        "u"
+          string => nth( getindices(l), 0 ),
+          meta => { "timespec=epoch", "inventory", "attribute_name=Users who logged in last" };
+#+END_SRC
+
+It's nice to inventory a standard time format to avoid confusion. I use data to
+convert the returned time to unix epoch format.
+
+#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+        "last_t"
+          string => execresult( "date --date='$(l[$(u)][3]) $(l[$(u)][4]) $(l[$(u)][5])' +'%s'", useshell);
+#+END_SRC
+
+When running the policy it's nice to have feedback when using inform mode (
+=--inform= | =-I= ), verbose mode (=--verbose= | =-v= ) or if there are policy
+DEBUG classes defined ( =DEBUG= | =DEBUG_$(this.bundle)= ).
+
+#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+    reports:
+      "inform_mode|verbose_mode|DEBUG|DEBUG_$(this.bundle)":: 
+
+        "last: $(u) $(with)"
+          with => strftime( localtime, "%Y-%m-%dT%TZ%Z", $(last_t));
+#+END_SRC
+
+If DEBUG classes are defined we emit the parsed data structure for review.
+
+#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+      "DEBUG|DEBUG_$(this.bundle)"::
+
+        "Data container for most recent user login:$(const.n)$(with)"
+          with => string_mustache( "{{%-top-}}", l  );
+  }
+#+END_SRC
+
+* Inventory recently logged in users
+:PROPERTIES:
+
+:END:
+
+I want to know which users have logged in to this host and when according to the
+~lastlog~ command. First I define =inventory_lastlog= as an agent bundle.
+
+#+Caption: =inventory_lastlog.cf=
+#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+  bundle agent inventory_lastlog
+  {
+#+END_SRC      
+
+Next I need to execute the ~lastlog~ command to get the login status for each
+user. The output is cached in a temporary file so that it can be parsed for
+inventory.
+
+#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+    commands:
+
+        "lastlog > /tmp/lastlog.cache"
+         contain => in_shell;
+#+END_SRC
+
+We may want to condition this execution to when no cache exists. Currently we
+are only using the native promise locking caching.
+
+Here is an example of the cached data.
+
+#+Caption: Example output from ~lastlog~ 
+#+BEGIN_EXAMPLE
+  Username         Port     From             Latest
+  root                                       **Never logged in**
+  daemon                                     **Never logged in**
+  bin                                        **Never logged in**
+  sys                                        **Never logged in**
+  sync                                       **Never logged in**
+  games                                      **Never logged in**
+  man                                        **Never logged in**
+  lp                                         **Never logged in**
+  mail                                       **Never logged in**
+  news                                       **Never logged in**
+  uucp                                       **Never logged in**
+  proxy                                      **Never logged in**
+  www-data                                   **Never logged in**
+  backup                                     **Never logged in**
+  list                                       **Never logged in**
+  irc                                        **Never logged in**
+  gnats                                      **Never logged in**
+  nobody                                     **Never logged in**
+  systemd-timesync                           **Never logged in**
+  systemd-network                            **Never logged in**
+  systemd-resolve                            **Never logged in**
+  systemd-bus-proxy                           **Never logged in**
+  syslog                                     **Never logged in**
+  messagebus                                 **Never logged in**
+  uuidd                                      **Never logged in**
+  avahi                                      **Never logged in**
+  dnsmasq                                    **Never logged in**
+  whoopsie                                   **Never logged in**
+  avahi-autoipd                              **Never logged in**
+  speech-dispatcher                           **Never logged in**
+  kernoops                                   **Never logged in**
+  pulse                                      **Never logged in**
+  rtkit                                      **Never logged in**
+  saned                                      **Never logged in**
+  usbmux                                     **Never logged in**
+  colord                                     **Never logged in**
+  hplip                                      **Never logged in**
+  lightdm                                    **Never logged in**
+  nickanderson     pts/3    192.168.42.198   Wed Nov 29 21:47:06 -0600 2017
+  gdm                                        **Never logged in**
+  geoclue                                    **Never logged in**
+  debian-spamd                               **Never logged in**
+  bitlbee                                    **Never logged in**
+  sshd                                       **Never logged in**
+  statd                                      **Never logged in**
+  clamav                                     **Never logged in**
+  minidlna                                   **Never logged in**
+  plex                                       **Never logged in**
+  debian-tor                                 **Never logged in**
+  postfix                                    **Never logged in**
+  _apt                                       **Never logged in**
+  nm-openvpn                                 **Never logged in**
+  gnome-initial-setup                           **Never logged in**
+  unbound                                    **Never logged in**
+  _dnscrypt-proxy                            **Never logged in**
+  mysql                                      **Never logged in**
+  libvirt-qemu                               **Never logged in**
+  libvirt-dnsmasq                            **Never logged in**
+  a10042                                     **Never logged in**
+#+END_EXAMPLE
+
+I only want to parse the usernames and login information into a data structure
+of users that have logged in so I treat the header and any user that has never
+logged in as a comment line and throw it away
+(=[^\n]*(^Username|\*\*Never\s+logged\s+in\*\*)[^\n]*=). The agent will happily
+re-parse the file and re-define the variable during each pass of evaluation. To
+prevent the un-necesary overhead of re-parsing we only parse if the variable has
+not yet been defined.
+
+#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+    vars:
+
+        # lightdm                                    **Never logged in**
+        # nickanderson     pts/3    192.168.42.198   Wed Nov 29 21:47:06 -0600 2017
+
+        "p" data => data_readstringarray( "/tmp/lastlog.cache", # filename
+                                          # I want to treat lines that have the string **Never logged in** as comment lines
+                                          # I also want to throw away the header that starts with Username
+                                          "[^\n]*(^Username|\*\*Never\s+logged\s+in\*\*)[^\n]*", # comment
+                                          "\s+", # split
+                                          inf, # maxentries
+                                          inf), # maxbytes
+            if => not(isvariable(p) ); # efficiency gain ... should be policy => const though
+#+END_SRC
+
+I get the list of users who have logged in from the index of the parsed data.
+
+#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+        "u" slist => getindices(p);
+#+END_SRC
+
+I iterate over the users defining a each one as a separate inventoried string.
+This avoids issues with inventorying large numbers of users where a list might be
+truncated.
+
+#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+        "has_logged_in[$(u)]"
+          string => "$(u)",
+          # I wish i could format timespec
+          meta => { "timespec=epoch",
+                    "inventory",
+                    "attribute_name=Users who have logged in" };
+#+END_SRC
+
+Next I use the ~date~ command to convert the time the user last logged in to
+unix epoch format and inventory a unique string for each users ~lastlog~.
+
+#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+        "last_log[$(u)]"
+          string => execresult( "date --date='$(p[$(u)][2]) $(p[$(u)][3]) $(p[$(u)][4]) $(p[$(u)][5]) $(p[$(u)][6]) $(p[$(u)][7])' +'%s'", useshell),
+          meta => { "timespec=epoch",
+                    "inventory",
+                    "attribute_name=lastlog $(u)" };
+#+END_SRC
+
+When running the policy it's nice to have feedback when using inform mode (
+=--inform= | =-I= ), verbose mode (=--verbose= | =-v= ) or if there are policy
+DEBUG classes defined ( =DEBUG= | =DEBUG_$(this.bundle)= ).
+
+#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+    reports:
+
+      "inform_mode|verbose_mode|DEBUG|DEBUG_$(this.bundle)"::
+
+        "lastlog: $(u) $(with)"
+          with => strftime( localtime, "%Y-%m-%dT%TZ%Z", "$(last_log[$(u)])");
+#+END_SRC
+
+If DEBUG classes are defined we emit the parsed data structure for review.
+
+#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+      "DEBUG|DEBUG_$(this.bundle)"::
+        "Data container for users who have logged in:$(const.n)$(with)"
+          with => string_mustache( "{{%-top-}}", p  );
+  }
+#+END_SRC

@@ -1,0 +1,11 @@
+body common control
+{
+  inputs => { 
+              "$(sys.libdir)/stdlib.cf",
+
+"inventory_lastlog.cf",
+
+"inventory_last.cf" };
+
+bundlesequence => { "inventory_lastlog", "inventory_last" };
+}

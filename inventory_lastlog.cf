@@ -1,0 +1,48 @@
+bundle agent inventory_lastlog
+{
+
+commands:
+
+    "lastlog > /tmp/lastlog.cache"
+     contain => in_shell;
+
+vars:
+
+    # lightdm                                    **Never logged in**
+    # nickanderson     pts/3    192.168.42.198   Wed Nov 29 21:47:06 -0600 2017
+
+    "p" data => data_readstringarray( "/tmp/lastlog.cache", # filename
+                                      # I want to treat lines that have the string **Never logged in** as comment lines
+                                      # I also want to throw away the header that starts with Username
+                                      "[^\n]*(^Username|\*\*Never\s+logged\s+in\*\*)[^\n]*", # comment
+                                      "\s+", # split
+                                      inf, # maxentries
+                                      inf), # maxbytes
+        if => not(isvariable(p) ); # efficiency gain ... should be policy => const though
+
+"u" slist => getindices(p);
+
+"has_logged_in[$(u)]"
+  string => "$(u)",
+  # I wish i could format timespec
+  meta => { "timespec=epoch",
+            "inventory",
+            "attribute_name=Users who have logged in" };
+
+"last_log[$(u)]"
+  string => execresult( "date --date='$(p[$(u)][2]) $(p[$(u)][3]) $(p[$(u)][4]) $(p[$(u)][5]) $(p[$(u)][6]) $(p[$(u)][7])' +'%s'", useshell),
+  meta => { "timespec=epoch",
+            "inventory",
+            "attribute_name=lastlog $(u)" };
+
+reports:
+
+  "inform_mode|verbose_mode|DEBUG|DEBUG_$(this.bundle)"::
+
+    "lastlog: $(u) $(with)"
+      with => strftime( localtime, "%Y-%m-%dT%TZ%Z", "$(last_log[$(u)])");
+
+"DEBUG|DEBUG_$(this.bundle)"::
+      "Data container for users who have logged in:$(const.n)$(with)"
+        with => string_mustache( "{{%-top-}}", p  );
+}
