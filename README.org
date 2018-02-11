@@ -65,7 +65,7 @@ policy and include external dependencies as necessary.
 It needs some things from the standard library so I define =standalone.cf= and
 add the stdlib to =inputs=.
 
-#+BEGIN_SRC cfengine3 :tangle standalone.cf
+#+BEGIN_SRC cfengine3 :tangle policy/standalone.cf
   body common control
   {
     inputs => { 
@@ -75,20 +75,20 @@ add the stdlib to =inputs=.
 I include =inventory_lastlog.cf= to inventory the users who have logged into the
 system according to ~lastlog~.
 
-#+BEGIN_SRC cfengine3 :tangle standalone.cf
+#+BEGIN_SRC cfengine3 :tangle policy/standalone.cf
                 "inventory_lastlog.cf",
 #+END_SRC
 
 I include =inventory_last.cf= to inventory the user who has most recently logged
 into the host according to ~last~.
 
-#+BEGIN_SRC cfengine3 :tangle standalone.cf
+#+BEGIN_SRC cfengine3 :tangle policy/standalone.cf
                 "inventory_last.cf" }; 
 #+END_SRC
 
 When running standalone I want to see information from both policies.
 
-#+BEGIN_SRC cfengine3 :tangle standalone.cf
+#+BEGIN_SRC cfengine3 :tangle policy/standalone.cf
     bundlesequence => { "inventory_lastlog", "inventory_last" };
   } 
 #+END_SRC
@@ -103,7 +103,7 @@ Audit. First I define =inventory_last= as an agent bundle.
 - Security team :: Senders of scanner reports, any compliance organization, those who watch the watchers
 
 #+Caption: =inventory_last.cf=
-#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_last.cf
   bundle agent inventory_last 
   {
       meta:
@@ -115,7 +115,7 @@ Next I need to execute the ~last~ command to get the most recent user using the
 =--fullnames= option. The output is cached in a temporary file so that it can be
 parsed for inventory.
 
-#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_last.cf
     commands:
        "last -1 --fullnames > /tmp/last.cache"  -> { "Security team", "External Compliance Audit" }
          contain => in_shell;
@@ -139,7 +139,7 @@ away (=^wtmp[^\n]*=). The agent will happily re-parse the file and re-define the
 variable during each pass of evaluation. To prevent the un-necesary overhead of
 re-parsing we only parse if the variable has not yet been defined.
 
-#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_last.cf
     vars:
 
         "l" data => data_readstringarray( "/tmp/last.cache", # filename
@@ -172,7 +172,7 @@ Here is an example of the data structure that is returned.
 
 I extract and inventory the username that most recently logged in.
 
-#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_last.cf
         "u"
           string => nth( getindices(l), 0 ),
           meta => { "format=epoch", "inventory", "attribute_name=Users who logged in last" };
@@ -181,7 +181,7 @@ I extract and inventory the username that most recently logged in.
 It's nice to inventory a standard time format to avoid confusion. I use data to
 convert the returned time to unix epoch format.
 
-#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_last.cf
         "last_t"
           string => execresult( "date --date='$(l[$(u)][3]) $(l[$(u)][4]) $(l[$(u)][5])' +'%s'", useshell);
 #+END_SRC
@@ -190,7 +190,7 @@ When running the policy it's nice to have feedback when using inform mode (
 =--inform= | =-I= ), verbose mode (=--verbose= | =-v= ) or if there are policy
 DEBUG classes defined ( =DEBUG= | =DEBUG_$(this.bundle)= ).
 
-#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_last.cf
     reports:
       "inform_mode|verbose_mode|DEBUG|DEBUG_$(this.bundle)":: 
 
@@ -200,7 +200,7 @@ DEBUG classes defined ( =DEBUG= | =DEBUG_$(this.bundle)= ).
 
 If DEBUG classes are defined we emit the parsed data structure for review.
 
-#+BEGIN_SRC cfengine3 :tangle inventory_last.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_last.cf
       "DEBUG|DEBUG_$(this.bundle)"::
 
         "Data container for most recent user login:$(const.n)$(with)"
@@ -217,7 +217,7 @@ I want to know which users have logged in to this host and when according to the
 ~lastlog~ command. First I define =inventory_lastlog= as an agent bundle.
 
 #+Caption: =inventory_lastlog.cf=
-#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_lastlog.cf
   bundle agent inventory_lastlog
   {
 #+END_SRC      
@@ -226,7 +226,7 @@ Next I need to execute the ~lastlog~ command to get the login status for each
 user. The output is cached in a temporary file so that it can be parsed for
 inventory.
 
-#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_lastlog.cf
     commands:
 
         "lastlog > /tmp/lastlog.cache"
@@ -310,7 +310,7 @@ re-parse the file and re-define the variable during each pass of evaluation. To
 prevent the un-necesary overhead of re-parsing we only parse if the variable has
 not yet been defined.
 
-#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_lastlog.cf
     vars:
 
         # lightdm                                    **Never logged in**
@@ -328,7 +328,7 @@ not yet been defined.
 
 I get the list of users who have logged in from the index of the parsed data.
 
-#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_lastlog.cf
         "u" slist => getindices(p);
 #+END_SRC
 
@@ -336,7 +336,7 @@ I iterate over the users defining a each one as a separate inventoried string.
 This avoids issues with inventorying large numbers of users where a list might be
 truncated.
 
-#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_lastlog.cf
         "has_logged_in[$(u)]"
           string => "$(u)",
           # I wish i could format timespec
@@ -348,7 +348,7 @@ truncated.
 Next I use the ~date~ command to convert the time the user last logged in to
 unix epoch format and inventory a unique string for each users ~lastlog~.
 
-#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_lastlog.cf
         "last_log[$(u)]"
           string => execresult( "date --date='$(p[$(u)][2]) $(p[$(u)][3]) $(p[$(u)][4]) $(p[$(u)][5]) $(p[$(u)][6]) $(p[$(u)][7])' +'%s'", useshell),
           meta => { "timespec=epoch",
@@ -360,7 +360,7 @@ When running the policy it's nice to have feedback when using inform mode (
 =--inform= | =-I= ), verbose mode (=--verbose= | =-v= ) or if there are policy
 DEBUG classes defined ( =DEBUG= | =DEBUG_$(this.bundle)= ).
 
-#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_lastlog.cf
     reports:
 
       "inform_mode|verbose_mode|DEBUG|DEBUG_$(this.bundle)"::
@@ -371,7 +371,7 @@ DEBUG classes defined ( =DEBUG= | =DEBUG_$(this.bundle)= ).
 
 If DEBUG classes are defined we emit the parsed data structure for review.
 
-#+BEGIN_SRC cfengine3 :tangle inventory_lastlog.cf
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_lastlog.cf
       "DEBUG|DEBUG_$(this.bundle)"::
         "Data container for users who have logged in:$(const.n)$(with)"
           with => string_mustache( "{{%-top-}}", p  );
