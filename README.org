@@ -90,17 +90,20 @@ When running standalone I want to see information from both policies.
 #+END_SRC
 
 * Inventory the most recently logged in user
-:PROPERTIES:
-:comments: org
-:END:
 
-I want to know which user logged in most recently and when according to the
-~last~ command. First I define =inventory_last= as an agent bundle. 
+The Security team want's to know which user logged in most recently and when
+according to the ~last~ command. This was prompted by an External Compliance
+Audit. First I define =inventory_last= as an agent bundle.
+
+- External Compliance Audit :: Something like CIS, PCI, AlphaBetSoup
+- Security team :: Senders of scanner reports, any compliance organization, those who watch the watchers
 
 #+Caption: =inventory_last.cf=
 #+BEGIN_SRC cfengine3 :tangle inventory_last.cf
   bundle agent inventory_last 
   {
+      meta:
+        "promisees" slist => { "Security team" , "External Compliacne Audit" };
 #+END_SRC
 
 Next I need to execute the ~last~ command to get the most recent user using the
@@ -108,10 +111,9 @@ Next I need to execute the ~last~ command to get the most recent user using the
 =--fullnames= option. The output is cached in a temporary file so that it can be
 parsed for inventory.
 
-
 #+BEGIN_SRC cfengine3 :tangle inventory_last.cf
     commands:
-       "last -1 --fullnames > /tmp/last.cache"
+       "last -1 --fullnames > /tmp/last.cache"  -> { "Security team", "External Compliance Audit" }
          contain => in_shell;
 #+END_SRC
 

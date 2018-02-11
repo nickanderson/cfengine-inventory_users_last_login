@@ -1,8 +1,10 @@
 bundle agent inventory_last 
 {
+    meta:
+      "promisees" slist => { "Security team" , "External Compliacne Audit" };
 
 commands:
-   "last -1 --fullnames > /tmp/last.cache"
+   "last -1 --fullnames > /tmp/last.cache"  -> { "Security team", "External Compliance Audit" }
      contain => in_shell;
 
 vars:
