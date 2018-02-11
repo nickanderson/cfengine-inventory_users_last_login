@@ -1,0 +1,38 @@
+bundle agent inventory_last 
+{
+    meta:
+      "promisees" slist => { "Security team" , "External Compliacne Audit" };
+
+commands:
+   "last -1 --fullnames > /tmp/last.cache"  -> { "Security team", "External Compliance Audit" }
+     contain => in_shell;
+
+vars:
+
+    "l" data => data_readstringarray( "/tmp/last.cache", # filename
+                                      # I want to treat lines that have the string **Never logged in** as comment lines
+                                      # I also want to throw away the header that starts with Username
+                                      "^wtmp[^\n]*", # comment
+                                      "\s+", # split
+                                      inf, # maxentries
+                                      inf), # maxbytes
+        if => not(isvariable(l) ); # efficiency gain ... should be policy => const though
+
+"u"
+  string => nth( getindices(l), 0 ),
+  meta => { "format=epoch", "inventory", "attribute_name=Users who logged in last" };
+
+"last_t"
+  string => execresult( "date --date='$(l[$(u)][3]) $(l[$(u)][4]) $(l[$(u)][5])' +'%s'", useshell);
+
+reports:
+  "inform_mode|verbose_mode|DEBUG|DEBUG_$(this.bundle)":: 
+
+    "last: $(u) $(with)"
+      with => strftime( localtime, "%Y-%m-%dT%TZ%Z", $(last_t));
+
+"DEBUG|DEBUG_$(this.bundle)"::
+
+      "Data container for most recent user login:$(const.n)$(with)"
+        with => string_mustache( "{{%-top-}}", l  );
+}
