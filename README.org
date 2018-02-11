@@ -9,13 +9,35 @@ Like /[[https://en.wikipedia.org/wiki/Literate_programming][literate programming
 policy in a natural language, interspersed with snippets macros and traditional
 source code from which CFEngine policy can be produced.
 
+* Building (tangling) the policy
+
+To regenerate the policy simply run ~org-tangle-file~ from within =org-mode= or
+run ~make~ from the console. In Spacemacs I ~<SPC> p c~
+(=projectile-compile-project=).
+
+#+BEGIN_EXAMPLE
+make
+emacs README.org --batch --eval "(require 'org)" --eval '(org-babel-tangle-file "README.org")' --kill
+Loading 00debian-vars...
+Loading /etc/emacs/site-start.d/50autoconf.el (source)...
+Loading /etc/emacs/site-start.d/50cmake-data.el (source)...
+Loading /etc/emacs/site-start.d/50dictionaries-common.el (source)...
+Loading debian-ispell...
+Loading /var/cache/dictionaries-common/emacsen-ispell-default.el (source)...
+Loading /var/cache/dictionaries-common/emacsen-ispell-dicts.el (source)...
+Loading /etc/emacs/site-start.d/50global.el (source)...
+Loading /etc/emacs/site-start.d/50mu4e.el (source)...
+Loading /etc/emacs/site-start.d/50python-docutils.el (source)...
+Tangled 19 code blocks from README.org
+#+END_EXAMPLE
+
 * Running the policy
 
 #+BEGIN_SRC shell :exports both :results output
   exec 2>&1
-  chmod 600 *.cf
-  cf-promises -cf ./standalone.cf
-  cf-agent -KIf ./standalone.cf --define DEBUG
+  chmod 600 ./policy/*.cf
+  cf-promises -cf ./policy/standalone.cf
+  cf-agent -KIf ./policy/standalone.cf --define DEBUG
   :
 #+END_SRC
 
