@@ -175,7 +175,7 @@ I extract and inventory the username that most recently logged in.
 #+BEGIN_SRC cfengine3 :tangle inventory_last.cf
         "u"
           string => nth( getindices(l), 0 ),
-          meta => { "timespec=epoch", "inventory", "attribute_name=Users who logged in last" };
+          meta => { "format=epoch", "inventory", "attribute_name=Users who logged in last" };
 #+END_SRC
 
 It's nice to inventory a standard time format to avoid confusion. I use data to
