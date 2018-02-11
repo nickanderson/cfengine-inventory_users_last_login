@@ -1,7 +1,11 @@
 bundle agent inventory_last 
 {
-    meta:
+  meta:
       "promisees" slist => { "Security team" , "External Compliacne Audit" };
+
+linux::
+  "tags" -> { "jira=SEC-123", "Security team", "Operations team" }
+    slist => { "autorun" };
 
 commands:
    "last -1 --fullnames > /tmp/last.cache"  -> { "Security team", "External Compliance Audit" }

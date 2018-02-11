@@ -118,8 +118,8 @@ When running standalone I want to see information from both policies.
 * Inventory the most recently logged in user
 
 The Security team want's to know which user logged in most recently and when
-according to the ~last~ command. This was prompted by an External Compliance
-Audit. First I define =inventory_last= as an agent bundle.
+according to the ~last~ command on linux hosts. This was prompted by an External
+Compliance Audit. First I define =inventory_last= as an agent bundle.
 
 - External Compliance Audit :: Something like CIS, PCI, AlphaBetSoup
 - Security team :: Senders of scanner reports, any compliance organization, those who watch the watchers
@@ -128,8 +128,18 @@ Audit. First I define =inventory_last= as an agent bundle.
 #+BEGIN_SRC cfengine3 :tangle policy/inventory_last.cf
   bundle agent inventory_last 
   {
-      meta:
+    meta:
         "promisees" slist => { "Security team" , "External Compliacne Audit" };
+#+END_SRC
+
+In <SEC-123> the Security team asked that this be run automatically where
+possible. During review Operations noted that it should be restricted to linux
+hosts.
+
+#+BEGIN_SRC cfengine3 :tangle policy/inventory_last.cf
+      linux::
+        "tags" -> { "jira=SEC-123", "Security team", "Operations team" }
+          slist => { "autorun" };
 #+END_SRC
 
 Next I need to execute the ~last~ command to get the most recent user using the
