@@ -12,7 +12,11 @@ source code from which CFEngine policy can be produced.
 * Running the policy
 
 #+BEGIN_SRC shell :exports both :results output
+  exec 2>&1
+  chmod 600 *.cf
+  cf-promises -cf ./standalone.cf
   cf-agent -KIf ./standalone.cf --define DEBUG
+  :
 #+END_SRC
 
 #+RESULTS:
