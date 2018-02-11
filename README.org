@@ -65,7 +65,7 @@ policy and include external dependencies as necessary.
 It needs some things from the standard library so I define =standalone.cf= and
 add the stdlib to =inputs=.
 
-#+BEGIN_SRC cfengine3
+#+BEGIN_SRC cfengine3 :tangle standalone.cf
   body common control
   {
     inputs => { 
@@ -75,20 +75,20 @@ add the stdlib to =inputs=.
 I include =inventory_lastlog.cf= to inventory the users who have logged into the
 system according to ~lastlog~.
 
-#+BEGIN_SRC cfengine3
+#+BEGIN_SRC cfengine3 :tangle standalone.cf
                 "inventory_lastlog.cf",
 #+END_SRC
 
 I include =inventory_last.cf= to inventory the user who has most recently logged
 into the host according to ~last~.
 
-#+BEGIN_SRC cfengine3
+#+BEGIN_SRC cfengine3 :tangle standalone.cf
                 "inventory_last.cf" }; 
 #+END_SRC
 
 When running standalone I want to see information from both policies.
 
-#+BEGIN_SRC cfengine3
+#+BEGIN_SRC cfengine3 :tangle standalone.cf
     bundlesequence => { "inventory_lastlog", "inventory_last" };
   } 
 #+END_SRC
