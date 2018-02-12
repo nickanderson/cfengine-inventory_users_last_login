@@ -123,10 +123,12 @@ When running standalone I want to see information from both policies.
 
 The Security team want's to know which user logged in most recently and when
 according to the ~last~ command on linux hosts. This was prompted by an External
-Compliance Audit. First I define =inventory_last= as an agent bundle.
+Compliance Audit.
 
 - External Compliance Audit :: Something like CIS, PCI, AlphaBetSoup
 - Security team :: Senders of scanner reports, any compliance organization, those who watch the watchers
+
+First I define =inventory_last= as an agent bundle.
 
 #+Caption: =inventory_last.cf=
 #+BEGIN_SRC cfengine3 :tangle policy/inventory_last.cf
