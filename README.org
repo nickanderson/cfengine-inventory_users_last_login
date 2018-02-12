@@ -11,9 +11,13 @@ source code from which CFEngine policy can be produced.
 
 * Building (tangling) the policy
 
-To regenerate the policy simply run ~org-tangle-file~ from within =org-mode= or
-run ~make~ from the console. In Spacemacs I ~<SPC> p c~
-(=projectile-compile-project=).
+This document functions as the policy source. It must be tangled into a format
+that is suitable for an agent to try and keep the promises (CFEngine in our
+case) to use.
+
+To extract the machine policy from this document simply run ~org-tangle-file~
+from within =org-mode= or run ~make~ from the console. In Spacemacs I ~<SPC> p
+c~ (=projectile-compile-project=).
 
 #+BEGIN_EXAMPLE
 make
